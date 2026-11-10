@@ -1,0 +1,28 @@
+// Адреса вашого запущеного API (FastAPI) на Render чи іншому хостингу
+const BACKEND_URL = "https://your-backend-url.com"; 
+
+// Функція для завантаження товарів з JSON через FastAPI
+function loadProducts() {
+    fetch(`${BACKEND_URL}/api/products`)
+        .then(response => response.json())
+        .then(products => {
+            const catalogContainer = document.getElementById('catalog'); // ID вашого контейнера товарів в HTML
+            catalogContainer.innerHTML = ''; // Очищаємо статичний текст
+
+            products.forEach(product => {
+                // Створюємо картку товару динамічно
+                const productHtml = `
+                    <div class="product-card">
+                        <h3>${product.title}</h3>
+                        <p class="price">${product.price} грн.</p>
+                        <button onclick="addToCart(${product.id}, '${product.title}', ${product.price})">Купити</button>
+                    </div>
+                `;
+                catalogContainer.insertAdjacentHTML('beforeend', productHtml);
+            });
+        })
+        .catch(err => console.error("Помилка завантаження товарів:", err));
+}
+
+// Викликаємо функцію при завантаженні сторінки
+document.addEventListener("DOMContentLoaded", loadProducts);

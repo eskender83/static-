@@ -1,798 +1,347 @@
 
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Автозапчастини Мазда Mini App</title>
-
-    <!-- Telegram WebApp -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <style>
-        :root {
-            --bg-color: #ffffff;
-            --text-color: #222222;
-            --btn-color: #2481cc;
-            --btn-text: #ffffff;
-            --hint-color: #aaaaaa;
-        }
-
-        body {
-            font-family: sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 15px;
-            padding-bottom: 100px;
-        }
-
-        .category-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin: 20px 0 10px;
-            color: var(--btn-color);
-        }
-
-        .product-card {
-            border: 1px solid var(--hint-color);
-            border-radius: 10px;
-            padding: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .product-info {
-            min-width: 0;
-            overflow-wrap: anywhere;
-        }
-
-        .product-title {
-            font-weight: bold;
-        }
-
-        .price {
-            color: var(--hint-color);
-            font-size: 14px;
-            margin-top: 4px;
-        }
-
-        button {
-            background-color: var(--btn-color);
-            color: var(--btn-text);
-            border: none;
-            padding: 8px 14px;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .form-group {
-            margin-top: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        input, select {
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--hint-color);
-            background: var(--bg-color);
-            color: var(--text-color);
-            font-size: 16px;
-        }
-
-        input::placeholder {
-            color: var(--hint-color);
-        }
-
-        .footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 15px;
-            background: var(--bg-color);
-            border-top: 1px solid var(--hint-color);
-            z-index: 10;
-        }
-
-        .checkout-btn {
-            width: 100%;
-            font-size: 16px;
-            padding: 12px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #order-form {
-            display: none;
-            margin-top: 20px;
-            border-top: 2px dashed var(--hint-color);
-            padding-top: 15px;
-        }
-
-        #loading-status {
-            text-align: center;
-            color: var(--hint-color);
-            margin-top: 20px;
-        }
-
-        .application {
-            font-size: 12px;
-            color: var(--hint-color);
-            margin-top: 5px;
-        }
-    </style>
-</head>
-
-<body>
-
-    <!-- КАТАЛОГ -->
-    <div id="catalog-view">
-
-        <h2>🚗 Каталог автозапчастин</h2>
-
-        <div id="catalog-container">
-            <div id="loading-status">
-                Завантаження каталогу товарів...
-            </div>
-        </div>
-
-        <div class="footer">
-            <button
-                class="checkout-btn"
-                id="cart-btn"
-                onclick="showOrderForm()"
-            >
-                Перейти до оформлення (0 грн.)
-            </button>
-        </div>
-
-    </div>
-
-
-    <!-- ФОРМА ЗАКАЗА -->
-    <div id="order-form">
-
-        <h2>📦 Оформлення замовлення</h2>
-
-        <div class="form-group">
-            <label for="user-phone">Номер телефону:</label>
-            <input
-                type="tel"
-                id="user-phone"
-                placeholder="+380"
-            >
-        </div>
-
-        <div class="form-group">
-            <label for="user-vin">
-                VIN-код автомобіля (17 символів):
-            </label>
-
-            <input
-                type="text"
-                id="user-vin"
-                placeholder="JTA1234567890XXXX"
-                maxlength="17"
-                style="text-transform: uppercase;"
-            >
-        </div>
-
-        <div class="form-group">
-            <label for="delivery-method">
-                Спосіб доставки:
-            </label>
-
-            <select id="delivery-method">
-                <option value="Нова Пошта">Нова Пошта</option>
-                <option value="Самовивіз">Самовивіз</option>
-            </select>
-        </div>
-
-        <br>
-
-        <button
-            class="checkout-btn"
-            id="send-order-btn"
-            onclick="sendOrder()"
-        >
-            Підтвердити замовлення
-        </button>
-
-        <button
-            style="background: grey; width: 100%; margin-top: 10px;"
-            onclick="hideOrderForm()"
-        >
-            Назад до каталогу
-        </button>
-
-    </div>
-
-
-    <script>
-
-        // ======================================
-        // НАСТРОЙКИ
-        // ======================================
-
-        const BACKEND_URL =
-            "https://static-backend-zxf7.onrender.com";
-
+import os
+import json
+from pathlib import Path
+from decimal import Decimal, InvalidOperation
 
-        // ======================================
-        // TELEGRAM WEB APP
-        // ======================================
+import httpx
 
-        let tg = null;
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-        try {
-            if (window.Telegram && window.Telegram.WebApp) {
-                tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand();
-            }
-        } catch (error) {
-            console.log("Звичайний режим браузера");
-        }
 
+# ==========================================
+# НАСТРОЙКИ
+# ==========================================
 
-        // ======================================
-        // КОРЗИНА
-        // ======================================
+BASE_DIR = Path(__file__).resolve().parent
+DATA_FILE = BASE_DIR / "data.json"
 
-        let cart = [];
-        let total = 0;
+# Переменные берутся из Render Environment
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
+print("BOT_TOKEN установлен:", bool(BOT_TOKEN))
+print("CHAT_ID установлен:", bool(CHAT_ID))
 
-        // ======================================
-        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-        // ======================================
 
-        function showMessage(message) {
-            if (tg) {
-                tg.showAlert(message);
-            } else {
-                alert(message);
-            }
-        }
+# ==========================================
+# СОЗДАНИЕ ПРИЛОЖЕНИЯ
+# ==========================================
 
+app = FastAPI(title="Auto Parts Shop API")
 
-        function formatPrice(price) {
-            return Number(price).toLocaleString("uk-UA");
-        }
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-        // ======================================
-        // ЗАГРУЗКА КАТАЛОГА
-        // ======================================
+# ==========================================
+# ЗАГРУЗКА ТОВАРОВ
+# ==========================================
 
-        async function loadCatalog() {
+def load_products():
 
-            const container =
-                document.getElementById("catalog-container");
+    if not DATA_FILE.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="Файл data.json не найден"
+        )
 
-            container.innerHTML =
-                '<div id="loading-status">Завантаження каталогу товарів...</div>';
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as file:
+            products = json.load(file)
 
-            try {
+    except (json.JSONDecodeError, OSError) as e:
+        print("Ошибка чтения data.json:", str(e))
 
-                const response = await fetch(
-                    `${BACKEND_URL}/api/products`
-                );
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка чтения каталога товаров"
+        )
 
-                if (!response.ok) {
-                    throw new Error(
-                        `Помилка сервера: ${response.status}`
-                    );
-                }
+    if not isinstance(products, list):
+        raise HTTPException(
+            status_code=500,
+            detail="Неверный формат data.json"
+        )
 
-                const products = await response.json();
+    return products
 
-                if (!Array.isArray(products)) {
-                    throw new Error("Неправильний формат каталогу");
-                }
 
-                container.innerHTML = "";
+# ==========================================
+# ГЛАВНАЯ СТРАНИЦА
+# ==========================================
 
-                if (products.length === 0) {
-                    container.textContent =
-                        "Каталог товарів порожній.";
-                    return;
-                }
+@app.get("/")
+async def home():
 
+    return {
+        "status": "OK",
+        "message": "Auto Parts Shop API работает"
+    }
 
-                // ГРУППИРОВКА ПО КАТЕГОРИЯМ
 
-                const categories = {};
+# ==========================================
+# ПОЛУЧЕНИЕ КАТАЛОГА
+# ==========================================
 
-                products.forEach(product => {
+@app.get("/api/products")
+async def get_products():
 
-                    const category =
-                        product.category || "Інше";
+    return load_products()
 
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
 
-                    categories[category].push(product);
+# ==========================================
+# МОДЕЛЬ ТОВАРА В ЗАКАЗЕ
+# ==========================================
 
-                });
+class CartItem(BaseModel):
 
+    id: str
+    quantity: int = Field(gt=0, le=1000)
 
-                // ВЫВОД ТОВАРОВ
 
-                for (const categoryName in categories) {
+# ==========================================
+# МОДЕЛЬ ЗАКАЗА
+# ==========================================
 
-                    const categoryTitle =
-                        document.createElement("div");
+class OrderRequest(BaseModel):
 
-                    categoryTitle.className = "category-title";
-                    categoryTitle.textContent = categoryName;
+    user_id: str | int = "Не указан"
+    user_name: str = "Покупатель"
 
-                    container.appendChild(categoryTitle);
+    phone: str
+    vin: str = ""
 
+    delivery: str = ""
 
-                    categories[categoryName].forEach(product => {
+    items: list[CartItem]
 
-                        const price = Number(
-                            String(product.price)
-                                .replace(/\s/g, "")
-                                .replace(/\u00a0/g, "")
-                        );
+    total_price: str | int | float | None = None
 
-                        const productId = Number(product.id);
 
-                        if (
-                            !Number.isFinite(price) ||
-                            !Number.isInteger(productId)
-                        ) {
-                            console.error(
-                                "Некоректний товар:",
-                                product
-                            );
-                            return;
-                        }
+# ==========================================
+# ПРЕОБРАЗОВАНИЕ ЦЕНЫ
+# ==========================================
 
+def parse_price(value):
 
-                        // КАРТОЧКА ТОВАРА
+    try:
+        clean_value = (
+            str(value)
+            .replace(" ", "")
+            .replace("\u00a0", "")
+            .replace(",", ".")
+        )
 
-                        const card =
-                            document.createElement("div");
+        return Decimal(clean_value)
 
-                        card.className = "product-card";
+    except (InvalidOperation, ValueError, TypeError):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Неверная цена товара: {value}"
+        )
 
 
-                        const info =
-                            document.createElement("div");
+def format_price(value):
 
-                        info.className = "product-info";
+    return f"{value:,.2f}".replace(",", " ").replace(".00", "")
 
 
-                        // НАЗВАНИЕ
+# ==========================================
+# ФОРМИРОВАНИЕ СООБЩЕНИЯ О ЗАКАЗЕ
+# ==========================================
 
-                        const title =
-                            document.createElement("div");
+def create_order_message(order, products):
 
-                        title.className = "product-title";
+    products_by_id = {
+        str(product.get("id")): product
+        for product in products
+    }
 
-                        title.textContent =
-                            product.title || "Без назви";
+    message = [
+        "🛒 НОВЫЙ ЗАКАЗ",
+        "",
+        f"👤 Покупатель: {order.user_name}",
+        f"🆔 Telegram ID: {order.user_id}",
+        f"📞 Телефон: {order.phone}",
+        f"🚗 VIN: {order.vin or 'Не указан'}",
+        f"📦 Доставка: {order.delivery or 'Не указана'}",
+        "",
+        "ТОВАРЫ:"
+    ]
 
+    total = Decimal("0")
 
-                        // OEM
+    for item in order.items:
 
-                        const oem =
-                            document.createElement("div");
+        product = products_by_id.get(str(item.id))
 
-                        oem.className = "price";
+        if not product:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Товар с ID {item.id} не найден"
+            )
 
-                        oem.textContent =
-                            `OEM: ${product.oem || product.id}`;
+        title = product.get("title", "Без названия")
+        oem = product.get("oem", "")
+        price = parse_price(product.get("price", 0))
 
+        subtotal = price * item.quantity
+        total += subtotal
 
-                        // ЦЕНА
+        message.append("")
+        message.append(f"• {title}")
 
-                        const priceDiv =
-                            document.createElement("div");
+        if oem:
+            message.append(f"  Артикул: {oem}")
 
-                        priceDiv.className = "price";
+        message.append(f"  Цена: {format_price(price)} грн")
+        message.append(f"  Количество: {item.quantity}")
+        message.append(f"  Сумма: {format_price(subtotal)} грн")
 
-                        priceDiv.textContent =
-                            `${formatPrice(price)} грн.`;
+    message.extend([
+        "",
+        "━━━━━━━━━━━━━━━━",
+        f"💰 ИТОГО: {format_price(total)} грн"
+    ])
 
+    return "\n".join(message)
 
-                        // ПРИМЕНЕНИЕ
 
-                        const application =
-                            document.createElement("div");
+# ==========================================
+# ОТПРАВКА СООБЩЕНИЯ В TELEGRAM
+# ==========================================
 
-                        application.className = "application";
+async def send_telegram_message(message: str):
 
-                        application.textContent =
-                            product["Застосування"]
-                                ? `Застосування: ${product["Застосування"]}`
-                                : "";
+    if not BOT_TOKEN or not CHAT_ID:
 
+        print("Ошибка: BOT_TOKEN или CHAT_ID не настроены")
 
-                        info.appendChild(title);
-                        info.appendChild(oem);
-                        info.appendChild(priceDiv);
-                        info.appendChild(application);
+        raise HTTPException(
+            status_code=500,
+            detail="Не настроены BOT_TOKEN или CHAT_ID в Render"
+        )
 
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{BOT_TOKEN}/sendMessage"
+    )
 
-                        // КНОПКА КУПИТЬ
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": message
+    }
 
-                        const button =
-                            document.createElement("button");
+    try:
 
-                        button.textContent = "Купити";
+        async with httpx.AsyncClient(timeout=30.0) as client:
 
-                        button.addEventListener("click", () => {
+            response = await client.post(
+                url,
+                json=payload
+            )
 
-                            addToCart(
-                                productId,
-                                product.title || product.oem,
-                                price
-                            );
+            print(
+                "Ответ Telegram HTTP:",
+                response.status_code
+            )
 
-                        });
+            if response.status_code != 200:
 
+                print(
+                    "Ошибка Telegram:",
+                    response.text
+                )
 
-                        card.appendChild(info);
-                        card.appendChild(button);
+            response.raise_for_status()
 
-                        container.appendChild(card);
+            result = response.json()
 
-                    });
+            if not result.get("ok"):
 
-                }
+                print("Ошибка Telegram API:", result)
 
-            } catch (error) {
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Telegram API: {result}"
+                )
 
-                console.error(
-                    "Помилка завантаження каталогу:",
-                    error
-                );
+            print("Заказ успешно отправлен в Telegram")
 
-                container.innerHTML = "";
+            return result
 
-                const errorMessage =
-                    document.createElement("div");
+    except HTTPException:
+        raise
 
-                errorMessage.id = "loading-status";
+    except httpx.HTTPStatusError as e:
 
-                errorMessage.textContent =
-                    "Помилка завантаження товарів. Спробуйте оновити сторінку.";
+        print(
+            "ОШИБКА TELEGRAM:",
+            e.response.status_code
+        )
 
-                container.appendChild(errorMessage);
+        print(
+            "ОТВЕТ TELEGRAM:",
+            e.response.text
+        )
 
-            }
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ошибка Telegram API: {e.response.text}"
+        )
 
-        }
+    except httpx.RequestError as e:
 
+        print(
+            "ОШИБКА СОЕДИНЕНИЯ С TELEGRAM:",
+            repr(e)
+        )
 
-        // ЗАГРУЗКА ПРИ ОТКРЫТИИ СТРАНИЦЫ
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось подключиться к Telegram API"
+        )
 
-        document.addEventListener(
-            "DOMContentLoaded",
-            loadCatalog
-        );
 
+# ==========================================
+# ОФОРМЛЕНИЕ ЗАКАЗА
+# ==========================================
 
-        // ======================================
-        // ДОБАВЛЕНИЕ В КОРЗИНУ
-        // ======================================
+@app.post("/api/order")
+async def create_order(order: OrderRequest):
 
-        function addToCart(id, title, price) {
+    if not order.items:
 
-            const item = cart.find(
-                product => product.id === id
-            );
+        raise HTTPException(
+            status_code=400,
+            detail="Корзина пуста"
+        )
 
-            if (item) {
+    if not order.phone.strip():
 
-                item.quantity++;
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите номер телефона"
+        )
 
-            } else {
+    products = load_products()
 
-                cart.push({
-                    id: id,
-                    title: title,
-                    price: price,
-                    quantity: 1
-                });
+    message = create_order_message(
+        order,
+        products
+    )
 
-            }
+    await send_telegram_message(message)
 
-            calculateTotal();
-
-
-            if (tg && tg.HapticFeedback) {
-
-                try {
-                    tg.HapticFeedback.impactOccurred("light");
-                } catch (error) {}
-
-            }
-
-            showMessage(
-                `✅ ${title} додано до кошика!`
-            );
-
-        }
-
-
-        // ======================================
-        // РАСЧЕТ СУММЫ
-        // ======================================
-
-        function calculateTotal() {
-
-            total = cart.reduce(
-                (sum, item) =>
-                    sum + item.price * item.quantity,
-                0
-            );
-
-            const button =
-                document.getElementById("cart-btn");
-
-            button.textContent =
-                `Перейти до оформлення (${formatPrice(total)} грн.)`;
-
-        }
-
-
-        // ======================================
-        // ОТКРЫТИЕ ФОРМЫ ЗАКАЗА
-        // ======================================
-
-        function showOrderForm() {
-
-            if (cart.length === 0) {
-
-                showMessage(
-                    "Кошик порожній! Додайте товари."
-                );
-
-                return;
-            }
-
-            document.getElementById(
-                "catalog-view"
-            ).style.display = "none";
-
-            document.getElementById(
-                "order-form"
-            ).style.display = "block";
-
-        }
-
-
-        // ======================================
-        // ВОЗВРАТ В КАТАЛОГ
-        // ======================================
-
-        function hideOrderForm() {
-
-            document.getElementById(
-                "catalog-view"
-            ).style.display = "block";
-
-            document.getElementById(
-                "order-form"
-            ).style.display = "none";
-
-        }
-
-
-        // ======================================
-        // ОТПРАВКА ЗАКАЗА В TELEGRAM
-        // ======================================
-
-        async function sendOrder() {
-
-            const phone = document
-                .getElementById("user-phone")
-                .value.trim();
-
-            const vin = document
-                .getElementById("user-vin")
-                .value.trim()
-                .toUpperCase();
-
-            const delivery = document
-                .getElementById("delivery-method")
-                .value;
-
-
-            if (!phone) {
-
-                showMessage(
-                    "Будь ласка, введіть номер телефону!"
-                );
-
-                return;
-            }
-
-
-            if (!vin) {
-
-                showMessage(
-                    "Будь ласка, введіть VIN-код автомобіля!"
-                );
-
-                return;
-            }
-
-
-            if (vin.length !== 17) {
-
-                showMessage(
-                    "VIN-код повинен містити 17 символів!"
-                );
-
-                return;
-            }
-
-
-            if (cart.length === 0) {
-
-                showMessage(
-                    "Кошик порожній!"
-                );
-
-                return;
-            }
-
-
-            // ДАННЫЕ ПОЛЬЗОВАТЕЛЯ TELEGRAM
-
-            let userId = 0;
-            let userName = "Анонім";
-
-            if (
-                tg &&
-                tg.initDataUnsafe &&
-                tg.initDataUnsafe.user
-            ) {
-
-                userId =
-                    tg.initDataUnsafe.user.id || 0;
-
-                userName =
-                    tg.initDataUnsafe.user.first_name ||
-                    "Користувач";
-
-            }
-
-
-            // ДАННЫЕ ЗАКАЗА
-
-            const orderData = {
-
-                user_id: userId,
-
-                user_name: userName,
-
-                phone: phone,
-
-                vin: vin,
-
-                delivery: delivery,
-
-                items: cart.map(item => ({
-                    id: item.id,
-                    title: item.title,
-                    price: item.price,
-                    quantity: item.quantity
-                })),
-
-                total_price: total
-
-            };
-
-
-            const sendButton =
-                document.getElementById("send-order-btn");
-
-            sendButton.disabled = true;
-            sendButton.textContent = "Відправлення...";
-
-
-            try {
-
-                const response = await fetch(
-                    `${BACKEND_URL}/api/order`,
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-
-                        body: JSON.stringify(orderData)
-                    }
-                );
-
-
-                const result = await response.json();
-
-
-                if (!response.ok) {
-
-                    throw new Error(
-                        result.detail ||
-                        "Не вдалося відправити замовлення"
-                    );
-
-                }
-
-
-                // УСПЕШНАЯ ОТПРАВКА
-
-                showMessage(
-                    "✅ Замовлення успішно відправлено! Дякуємо за покупку."
-                );
-
-
-                // ОЧИСТКА КОРЗИНЫ
-
-                cart = [];
-                total = 0;
-
-                calculateTotal();
-
-                document.getElementById(
-                    "user-phone"
-                ).value = "";
-
-                document.getElementById(
-                    "user-vin"
-                ).value = "";
-
-                hideOrderForm();
-
-
-            } catch (error) {
-
-                console.error(
-                    "Помилка відправлення замовлення:",
-                    error
-                );
-
-                showMessage(
-                    `Помилка: ${error.message}`
-                );
-
-            } finally {
-
-                sendButton.disabled = false;
-
-                sendButton.textContent =
-                    "Підтвердити замовлення";
-
-            }
-
-        }
-
-    </script>
-
-</body>
-</html>
+    return {
+        "success": True,
+        "message": "Заказ успешно отправлен"
+    }

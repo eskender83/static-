@@ -28,6 +28,18 @@
             padding-bottom: 100px;
         }
 
+        .search-box {
+            width: 100%;
+            box-sizing: border-box;
+            margin: 12px 0 8px;
+        }
+
+        .search-hint {
+            color: var(--hint-color);
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+
         .category-title {
             font-size: 18px;
             font-weight: bold;
@@ -147,6 +159,15 @@
 
         <h2>🚗 Каталог автозапчастин</h2>
 
+        <input
+            type="search"
+            id="product-search"
+            class="search-box"
+            placeholder="Пошук за назвою, артикулом або застосуванням..."
+            autocomplete="off"
+        >
+        <div class="search-hint">Введіть назву товару, артикул або модель авто</div>
+
         <div id="catalog-container">
             <div id="loading-status">
                 Завантаження каталогу товарів...
@@ -258,6 +279,7 @@
 
         let cart = [];
         let total = 0;
+        let allProducts = [];
 
 
         // ======================================
@@ -283,23 +305,15 @@
         // ======================================
 
         async function loadCatalog() {
-
-            const container =
-                document.getElementById("catalog-container");
-
+            const container = document.getElementById("catalog-container");
             container.innerHTML =
                 '<div id="loading-status">Завантаження каталогу товарів...</div>';
 
             try {
-
-                const response = await fetch(
-                    `${BACKEND_URL}/api/products`
-                );
+                const response = await fetch(`${BACKEND_URL}/api/products`);
 
                 if (!response.ok) {
-                    throw new Error(
-                        `Помилка сервера: ${response.status}`
-                    );
+                    throw new Error(`Помилка сервера: ${response.status}`);
                 }
 
                 const products = await response.json();
@@ -308,183 +322,133 @@
                     throw new Error("Неправильний формат каталогу");
                 }
 
-                container.innerHTML = "";
-
-                if (products.length === 0) {
-                    container.textContent =
-                        "Каталог товарів порожній.";
-                    return;
-                }
-
-
-                // ГРУППИРОВКА ПО КАТЕГОРИЯМ
-
-                const categories = {};
-
-                products.forEach(product => {
-
-                    const category =
-                        product.category || "Інше";
-
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
-
-                    categories[category].push(product);
-
-                });
-
-
-                // ВЫВОД ТОВАРОВ
-
-                for (const categoryName in categories) {
-
-                    const categoryTitle =
-                        document.createElement("div");
-
-                    categoryTitle.className = "category-title";
-                    categoryTitle.textContent = categoryName;
-
-                    container.appendChild(categoryTitle);
-
-
-                    categories[categoryName].forEach(product => {
-
-                        const price = Number(
-                            String(product.price)
-                                .replace(/\s/g, "")
-                                .replace(/\u00a0/g, "")
-                        );
-
-                        const productId = Number(product.id);
-
-                        if (
-                            !Number.isFinite(price) ||
-                            !Number.isInteger(productId)
-                        ) {
-                            console.error(
-                                "Некоректний товар:",
-                                product
-                            );
-                            return;
-                        }
-
-
-                        // КАРТОЧКА ТОВАРА
-
-                        const card =
-                            document.createElement("div");
-
-                        card.className = "product-card";
-
-
-                        const info =
-                            document.createElement("div");
-
-                        info.className = "product-info";
-
-
-                        // НАЗВАНИЕ
-
-                        const title =
-                            document.createElement("div");
-
-                        title.className = "product-title";
-
-                        title.textContent =
-                            product.title || "Без назви";
-
-
-                        // OEM
-
-                        const oem =
-                            document.createElement("div");
-
-                        oem.className = "price";
-
-                        oem.textContent =
-                            `OEM: ${product.oem || product.id}`;
-
-
-                        // ЦЕНА
-
-                        const priceDiv =
-                            document.createElement("div");
-
-                        priceDiv.className = "price";
-
-                        priceDiv.textContent =
-                            `${formatPrice(price)} грн.`;
-
-
-                        // ПРИМЕНЕНИЕ
-
-                        const application =
-                            document.createElement("div");
-
-                        application.className = "application";
-
-                        application.textContent =
-                            product["Застосування"]
-                                ? `Застосування: ${product["Застосування"]}`
-                                : "";
-
-
-                        info.appendChild(title);
-                        info.appendChild(oem);
-                        info.appendChild(priceDiv);
-                        info.appendChild(application);
-
-
-                        // КНОПКА КУПИТЬ
-
-                        const button =
-                            document.createElement("button");
-
-                        button.textContent = "Купити";
-
-                        button.addEventListener("click", () => {
-
-                            addToCart(
-                                productId,
-                                product.title || product.oem,
-                                price
-                            );
-
-                        });
-
-
-                        card.appendChild(info);
-                        card.appendChild(button);
-
-                        container.appendChild(card);
-
-                    });
-
-                }
+                allProducts = products;
+                renderCatalog();
 
             } catch (error) {
-
-                console.error(
-                    "Помилка завантаження каталогу:",
-                    error
-                );
-
+                console.error("Помилка завантаження каталогу:", error);
                 container.innerHTML = "";
 
-                const errorMessage =
-                    document.createElement("div");
-
+                const errorMessage = document.createElement("div");
                 errorMessage.id = "loading-status";
-
                 errorMessage.textContent =
                     "Помилка завантаження товарів. Спробуйте оновити сторінку.";
 
                 container.appendChild(errorMessage);
+            }
+        }
 
+
+        // ======================================
+        // ПОИСК И ОТОБРАЖЕНИЕ КАТАЛОГА
+        // ======================================
+
+        function renderCatalog() {
+            const container = document.getElementById("catalog-container");
+            const searchInput = document.getElementById("product-search");
+            const query = searchInput.value.trim().toLocaleLowerCase("uk-UA");
+
+            container.innerHTML = "";
+
+            const filteredProducts = allProducts.filter(product => {
+                const searchableText = [
+                    product.title,
+                    product.oem,
+                    product.id,
+                    product["Застосування"]
+                ]
+                    .filter(value => value !== null && value !== undefined)
+                    .join(" ")
+                    .toLocaleLowerCase("uk-UA");
+
+                return searchableText.includes(query);
+            });
+
+            if (filteredProducts.length === 0) {
+                container.textContent = query
+                    ? "За вашим запитом товарів не знайдено."
+                    : "Каталог товарів порожній.";
+                return;
             }
 
+            const categories = {};
+
+            filteredProducts.forEach(product => {
+                const category = product.category || "Інше";
+
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+
+                categories[category].push(product);
+            });
+
+            for (const categoryName in categories) {
+                const categoryTitle = document.createElement("div");
+                categoryTitle.className = "category-title";
+                categoryTitle.textContent = categoryName;
+                container.appendChild(categoryTitle);
+
+                categories[categoryName].forEach(product => {
+                    const price = Number(
+                        String(product.price)
+                            .replace(/\s/g, "")
+                            .replace(/\u00a0/g, "")
+                    );
+
+                    const productId = Number(product.id);
+
+                    if (!Number.isFinite(price) || !Number.isInteger(productId)) {
+                        console.error("Некоректний товар:", product);
+                        return;
+                    }
+
+                    const card = document.createElement("div");
+                    card.className = "product-card";
+
+                    const info = document.createElement("div");
+                    info.className = "product-info";
+
+                    const title = document.createElement("div");
+                    title.className = "product-title";
+                    title.textContent = product.title || "Без назви";
+
+                    const oem = document.createElement("div");
+                    oem.className = "price";
+                    oem.textContent = `OEM: ${product.oem || product.id}`;
+
+                    const priceDiv = document.createElement("div");
+                    priceDiv.className = "price";
+                    priceDiv.textContent = `${formatPrice(price)} грн.`;
+
+                    const application = document.createElement("div");
+                    application.className = "application";
+                    application.textContent = product["Застосування"]
+                        ? `Застосування: ${product["Застосування"]}`
+                        : "";
+
+                    info.appendChild(title);
+                    info.appendChild(oem);
+                    info.appendChild(priceDiv);
+                    info.appendChild(application);
+
+                    const button = document.createElement("button");
+                    button.textContent = "Купити";
+                    button.addEventListener("click", () => {
+                        addToCart(productId, product.title || product.oem, price);
+                    });
+
+                    card.appendChild(info);
+                    card.appendChild(button);
+                    container.appendChild(card);
+                });
+            }
         }
+
+        document.getElementById("product-search").addEventListener(
+            "input",
+            renderCatalog
+        );
 
 
         // ЗАГРУЗКА ПРИ ОТКРЫТИИ СТРАНИЦЫ

@@ -1,0 +1,899 @@
+
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Автозапчастини Мазда Mini App</title>
+
+    <!-- Telegram WebApp -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #222222;
+            --btn-color: #2481cc;
+            --btn-text: #ffffff;
+            --hint-color: #aaaaaa;
+        }
+
+        body {
+            font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px;
+            padding-bottom: 100px;
+        }
+
+        .search-box {
+            width: 100%;
+            box-sizing: border-box;
+            margin: 12px 0 8px;
+        }
+
+        .search-hint {
+            color: var(--hint-color);
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+
+        .category-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0 10px;
+            color: var(--btn-color);
+        }
+
+        .folder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            margin-top: 12px;
+        }
+
+        .folder-item {
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 15px;
+            border: 1px solid var(--hint-color);
+            border-radius: 10px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            text-align: left;
+            font-size: 15px;
+        }
+
+        .folder-item span:last-child {
+            color: var(--hint-color);
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .folder-heading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .back-button {
+            background: #777;
+            margin: 10px 0;
+        }
+
+        .product-card {
+            border: 1px solid var(--hint-color);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .product-info {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .product-title {
+            font-weight: bold;
+        }
+
+        .price {
+            color: var(--hint-color);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        button {
+            background-color: var(--btn-color);
+            color: var(--btn-text);
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .form-group {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        input, select {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--hint-color);
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+
+        input::placeholder {
+            color: var(--hint-color);
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            background: var(--bg-color);
+            border-top: 1px solid var(--hint-color);
+            z-index: 10;
+        }
+
+        .checkout-btn {
+            width: 100%;
+            font-size: 16px;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #order-form {
+            display: none;
+            margin-top: 20px;
+            border-top: 2px dashed var(--hint-color);
+            padding-top: 15px;
+        }
+
+        #loading-status {
+            text-align: center;
+            color: var(--hint-color);
+            margin-top: 20px;
+        }
+
+        .application {
+            font-size: 12px;
+            color: var(--hint-color);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- КАТАЛОГ -->
+    <div id="catalog-view">
+
+        <h2>🚗 Каталог автозапчастин</h2>
+
+        <input
+            type="search"
+            id="product-search"
+            class="search-box"
+            placeholder="Пошук за назвою, артикулом або застосуванням..."
+            autocomplete="off"
+        >
+        <div class="search-hint">Введіть назву товару, артикул або модель авто</div>
+
+        <div id="folder-navigation"></div>
+
+        <div id="catalog-container">
+            <div id="loading-status">
+                Завантаження каталогу товарів...
+            </div>
+        </div>
+
+        <div class="footer">
+            <button
+                class="checkout-btn"
+                id="cart-btn"
+                onclick="showOrderForm()"
+            >
+                Перейти до оформлення (0 грн.)
+            </button>
+        </div>
+
+    </div>
+
+
+    <!-- ФОРМА ЗАКАЗА -->
+    <div id="order-form">
+
+        <h2>📦 Оформлення замовлення</h2>
+
+        <div class="form-group">
+            <label for="user-phone">Номер телефону:</label>
+            <input
+                type="tel"
+                id="user-phone"
+                placeholder="+380"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="user-vin">
+                VIN-код автомобіля (17 символів):
+            </label>
+
+            <input
+                type="text"
+                id="user-vin"
+                placeholder="JTA1234567890XXXX"
+                maxlength="17"
+                style="text-transform: uppercase;"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="delivery-method">
+                Спосіб доставки:
+            </label>
+
+            <select id="delivery-method">
+                <option value="Нова Пошта">Нова Пошта</option>
+                <option value="Самовивіз">Самовивіз</option>
+            </select>
+        </div>
+
+        <br>
+
+        <button
+            class="checkout-btn"
+            id="send-order-btn"
+            onclick="sendOrder()"
+        >
+            Підтвердити замовлення
+        </button>
+
+        <button
+            style="background: grey; width: 100%; margin-top: 10px;"
+            onclick="hideOrderForm()"
+        >
+            Назад до каталогу
+        </button>
+
+    </div>
+
+
+    <script>
+
+        // ======================================
+        // НАСТРОЙКИ
+        // ======================================
+
+        const BACKEND_URL =
+            "https://static-backend-zxf7.onrender.com";
+
+
+        // ======================================
+        // TELEGRAM WEB APP
+        // ======================================
+
+        let tg = null;
+
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+            }
+        } catch (error) {
+            console.log("Звичайний режим браузера");
+        }
+
+
+        // ======================================
+        // КОРЗИНА
+        // ======================================
+
+        let cart = [];
+        let total = 0;
+        let allProducts = [];
+        let selectedApplication = null;
+        let selectedCategory = null;
+
+
+        // ======================================
+        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ======================================
+
+        function showMessage(message) {
+            if (tg) {
+                tg.showAlert(message);
+            } else {
+                alert(message);
+            }
+        }
+
+
+        function formatPrice(price) {
+            return Number(price).toLocaleString("uk-UA");
+        }
+
+        // Поддерживает старый формат "MAZDA,TC" и новый ["MAZDA", "TC"].
+        function getProductApplications(product) {
+            const value = product["Застосування"];
+
+            if (Array.isArray(value)) {
+                return value
+                    .map(item => String(item).trim())
+                    .filter(Boolean);
+            }
+
+            if (typeof value === "string") {
+                return value
+                    .split(",")
+                    .map(item => item.trim())
+                    .filter(Boolean);
+            }
+
+            return ["Не вказано"];
+        }
+
+
+        // ======================================
+        // ЗАГРУЗКА КАТАЛОГА
+        // ======================================
+
+        async function loadCatalog() {
+            const container = document.getElementById("catalog-container");
+            container.innerHTML =
+                '<div id="loading-status">Завантаження каталогу товарів...</div>';
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/products`);
+
+                if (!response.ok) {
+                    throw new Error(`Помилка сервера: ${response.status}`);
+                }
+
+                const products = await response.json();
+
+                if (!Array.isArray(products)) {
+                    throw new Error("Неправильний формат каталогу");
+                }
+
+                allProducts = products;
+                renderCatalog();
+
+            } catch (error) {
+                console.error("Помилка завантаження каталогу:", error);
+                container.innerHTML = "";
+
+                const errorMessage = document.createElement("div");
+                errorMessage.id = "loading-status";
+                errorMessage.textContent =
+                    "Помилка завантаження товарів. Спробуйте оновити сторінку.";
+
+                container.appendChild(errorMessage);
+            }
+        }
+
+
+        // ======================================
+        // ПОИСК И ОТОБРАЖЕНИЕ КАТАЛОГА
+        // ======================================
+
+        function renderCatalog() {
+            const container = document.getElementById("catalog-container");
+            const navigation = document.getElementById("folder-navigation");
+            const searchInput = document.getElementById("product-search");
+            const query = searchInput.value.trim().toLocaleLowerCase("uk-UA");
+
+            container.innerHTML = "";
+            navigation.innerHTML = "";
+
+            // Пошук показывает совпавшие товары сразу, независимо от папок.
+            if (query) {
+                selectedApplication = null;
+                selectedCategory = null;
+                const matches = allProducts.filter(product => {
+                    const searchableText = [
+                        product.title,
+                        product["артикул"],
+                        product.id,
+                        getProductApplications(product).join(" "),
+                        product.category
+                    ].filter(value => value !== null && value !== undefined)
+                     .join(" ").toLocaleLowerCase("uk-UA");
+                    return searchableText.includes(query);
+                });
+                renderProductCards(matches, container);
+                return;
+            }
+
+            const backButton = document.createElement("button");
+            backButton.className = "back-button";
+            backButton.textContent = selectedCategory
+                ? "← Назад до застосування / категорій"
+                : selectedApplication
+                    ? "← Назад до застосування"
+                    : "";
+
+            if (selectedApplication || selectedCategory) {
+                backButton.addEventListener("click", () => {
+                    if (selectedCategory !== null) {
+                        selectedCategory = null;
+                    } else {
+                        selectedApplication = null;
+                    }
+                    renderCatalog();
+                });
+                navigation.appendChild(backButton);
+            }
+
+            const heading = document.createElement("div");
+            heading.className = "folder-heading";
+            heading.textContent = selectedCategory
+                ? `${selectedApplication} / ${selectedCategory}`
+                : selectedApplication
+                    ? `Застосування: ${selectedApplication} — категорії`
+                    : "📁 Застосування";
+            navigation.appendChild(heading);
+
+            if (selectedCategory !== null) {
+                const products = allProducts.filter(product =>
+                    getProductApplications(product).includes(selectedApplication) &&
+                    (product.category || "Інше") === selectedCategory
+                );
+                renderProductCards(products, container);
+                return;
+            }
+
+            const folderList = document.createElement("div");
+            folderList.className = "folder-list";
+
+            if (selectedApplication !== null) {
+                const categories = [...new Set(
+                    allProducts
+                        .filter(product => getProductApplications(product).includes(selectedApplication))
+                        .map(product => product.category || "Інше")
+                )].sort((a, b) => a.localeCompare(b, "uk"));
+
+                categories.forEach(category => {
+                    const count = allProducts.filter(product =>
+                        getProductApplications(product).includes(selectedApplication) &&
+                        (product.category || "Інше") === category
+                    ).length;
+                    const folder = document.createElement("button");
+                    folder.className = "folder-item";
+                    folder.innerHTML = `<strong>📁 ${escapeHtml(category)}</strong><span>${count} товар(ів) ›</span>`;
+                    folder.addEventListener("click", () => {
+                        selectedCategory = category;
+                        renderCatalog();
+                    });
+                    folderList.appendChild(folder);
+                });
+            } else {
+                const applications = [...new Set(
+                    allProducts.flatMap(product => getProductApplications(product))
+                )].sort((a, b) => a.localeCompare(b, "uk"));
+
+                applications.forEach(application => {
+                    const count = allProducts.filter(product =>
+                        (product["Застосування"] || "Не вказано") === application
+                    ).length;
+                    const folder = document.createElement("button");
+                    folder.className = "folder-item";
+                    folder.innerHTML = `<strong>📁 ${escapeHtml(application)}</strong><span>${count} товар(ів) ›</span>`;
+                    folder.addEventListener("click", () => {
+                        selectedApplication = application;
+                        renderCatalog();
+                    });
+                    folderList.appendChild(folder);
+                });
+            }
+
+            if (folderList.children.length === 0) {
+                container.textContent = "Папок не знайдено.";
+            } else {
+                container.appendChild(folderList);
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, character => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;",
+                '"': "&quot;", "'": "&#39;"
+            })[character]);
+        }
+
+        function renderProductCards(products, container) {
+            if (products.length === 0) {
+                container.textContent = "У цій папці товарів не знайдено.";
+                return;
+            }
+
+            products.forEach(product => {
+                const price = Number(String(product.price)
+                    .replace(/\s/g, "").replace(/\u00a0/g, ""));
+                const productId = Number(product.id);
+
+                if (!Number.isFinite(price) || !Number.isInteger(productId)) {
+                    console.error("Некоректний товар:", product);
+                    return;
+                }
+
+                const card = document.createElement("div");
+                card.className = "product-card";
+
+                const info = document.createElement("div");
+                info.className = "product-info";
+
+                const title = document.createElement("div");
+                title.className = "product-title";
+                title.textContent = product.title || "Без назви";
+
+                const article = document.createElement("div");
+                article.className = "price";
+                article.textContent = `Артикул: ${product["артикул"] || "Не вказано"}`;
+
+                const priceDiv = document.createElement("div");
+                priceDiv.className = "price";
+                priceDiv.textContent = `${formatPrice(price)} грн.`;
+
+                info.appendChild(title);
+                info.appendChild(article);
+                info.appendChild(priceDiv);
+
+                const button = document.createElement("button");
+                button.textContent = "Купити";
+                button.addEventListener("click", () => {
+                    addToCart(productId, product.title || product["артикул"], price);
+                });
+
+                card.appendChild(info);
+                card.appendChild(button);
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById("product-search").addEventListener(
+            "input",
+            renderCatalog
+        );
+
+
+        // ЗАГРУЗКА ПРИ ОТКРЫТИИ СТРАНИЦЫ
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            loadCatalog
+        );
+
+
+        // ======================================
+        // ДОБАВЛЕНИЕ В КОРЗИНУ
+        // ======================================
+
+        function addToCart(id, title, price) {
+
+            const item = cart.find(
+                product => product.id === id
+            );
+
+            if (item) {
+
+                item.quantity++;
+
+            } else {
+
+                cart.push({
+                    id: id,
+                    title: title,
+                    price: price,
+                    quantity: 1
+                });
+
+            }
+
+            calculateTotal();
+
+
+            if (tg && tg.HapticFeedback) {
+
+                try {
+                    tg.HapticFeedback.impactOccurred("light");
+                } catch (error) {}
+
+            }
+
+            showMessage(
+                `✅ ${title} додано до кошика!`
+            );
+
+        }
+
+
+        // ======================================
+        // РАСЧЕТ СУММЫ
+        // ======================================
+
+        function calculateTotal() {
+
+            total = cart.reduce(
+                (sum, item) =>
+                    sum + item.price * item.quantity,
+                0
+            );
+
+            const button =
+                document.getElementById("cart-btn");
+
+            button.textContent =
+                `Перейти до оформлення (${formatPrice(total)} грн.)`;
+
+        }
+
+
+        // ======================================
+        // ОТКРЫТИЕ ФОРМЫ ЗАКАЗА
+        // ======================================
+
+        function showOrderForm() {
+
+            if (cart.length === 0) {
+
+                showMessage(
+                    "Кошик порожній! Додайте товари."
+                );
+
+                return;
+            }
+
+            document.getElementById(
+                "catalog-view"
+            ).style.display = "none";
+
+            document.getElementById(
+                "order-form"
+            ).style.display = "block";
+
+        }
+
+
+        // ======================================
+        // ВОЗВРАТ В КАТАЛОГ
+        // ======================================
+
+        function hideOrderForm() {
+
+            document.getElementById(
+                "catalog-view"
+            ).style.display = "block";
+
+            document.getElementById(
+                "order-form"
+            ).style.display = "none";
+
+        }
+
+
+        // ======================================
+        // ОТПРАВКА ЗАКАЗА В TELEGRAM
+        // ======================================
+
+        async function sendOrder() {
+
+            const phone = document
+                .getElementById("user-phone")
+                .value.trim();
+
+            const vin = document
+                .getElementById("user-vin")
+                .value.trim()
+                .toUpperCase();
+
+            const delivery = document
+                .getElementById("delivery-method")
+                .value;
+
+
+            if (!phone) {
+
+                showMessage(
+                    "Будь ласка, введіть номер телефону!"
+                );
+
+                return;
+            }
+
+
+            if (!vin) {
+
+                showMessage(
+                    "Будь ласка, введіть VIN-код автомобіля!"
+                );
+
+                return;
+            }
+
+
+            if (vin.length !== 17) {
+
+                showMessage(
+                    "VIN-код повинен містити 17 символів!"
+                );
+
+                return;
+            }
+
+
+            if (cart.length === 0) {
+
+                showMessage(
+                    "Кошик порожній!"
+                );
+
+                return;
+            }
+
+
+            // ДАННЫЕ ПОЛЬЗОВАТЕЛЯ TELEGRAM
+
+            let userId = 0;
+            let userName = "Анонім";
+
+            if (
+                tg &&
+                tg.initDataUnsafe &&
+                tg.initDataUnsafe.user
+            ) {
+
+                userId =
+                    tg.initDataUnsafe.user.id || 0;
+
+                userName =
+                    tg.initDataUnsafe.user.first_name ||
+                    "Користувач";
+
+            }
+
+
+            // ДАННЫЕ ЗАКАЗА
+
+            const orderData = {
+
+                user_id: userId,
+
+                user_name: userName,
+
+                phone: phone,
+
+                vin: vin,
+
+                delivery: delivery,
+
+                items: cart.map(item => ({
+                    id: item.id,
+                    title: item.title,
+                    price: item.price,
+                    quantity: item.quantity
+                })),
+
+                total_price: total
+
+            };
+
+
+            const sendButton =
+                document.getElementById("send-order-btn");
+
+            sendButton.disabled = true;
+            sendButton.textContent = "Відправлення...";
+
+
+            try {
+
+                const response = await fetch(
+                    `${BACKEND_URL}/api/order`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+
+                        body: JSON.stringify(orderData)
+                    }
+                );
+
+
+                const result = await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        result.detail ||
+                        "Не вдалося відправити замовлення"
+                    );
+
+                }
+
+
+                // УСПЕШНАЯ ОТПРАВКА
+
+                showMessage(
+                    "✅ Замовлення успішно відправлено! Дякуємо за покупку."
+                );
+
+
+                // ОЧИСТКА КОРЗИНЫ
+
+                cart = [];
+                total = 0;
+
+                calculateTotal();
+
+                document.getElementById(
+                    "user-phone"
+                ).value = "";
+
+                document.getElementById(
+                    "user-vin"
+                ).value = "";
+
+                hideOrderForm();
+
+
+            } catch (error) {
+
+                console.error(
+                    "Помилка відправлення замовлення:",
+                    error
+                );
+
+                showMessage(
+                    `Помилка: ${error.message}`
+                );
+
+            } finally {
+
+                sendButton.disabled = false;
+
+                sendButton.textContent =
+                    "Підтвердити замовлення";
+
+            }
+
+        }
+
+    </script>
+
+</body>
+</html>
